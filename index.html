@@ -1358,7 +1358,8 @@ button.bday.sel .b{background:rgba(255,255,255,.22); color:#fff}
 .md-gap{height:9px}
 /* 확인창 안의 가로선 (renderModal 의 '---' 줄) */
 .md-rule{border-top:1px dashed var(--border-strong); margin:var(--s8) 0}
-.md-f{display:flex; gap:var(--s8); padding:0 var(--s16) var(--s16); justify-content:flex-end}
+/* 줄바꿈: 단추가 많은 선택 창(계정·직원 고르기)이 창 밖으로 잘리던 것(11-04 재아) */
+.md-f{display:flex; flex-wrap:wrap; gap:var(--s8); padding:0 var(--s16) var(--s16); justify-content:flex-end}
 .md-f .btn{min-width:96px; padding:var(--s12) var(--s16); font-size:var(--fs-body)}
 
 /* ---------- 움직임 (Phase 6-1) — 딱 세 곳만 ----------
@@ -6269,11 +6270,11 @@ async function adminEnter(typed){
     var rows = await sb("/rest/v1/staff?select=id,name,nick,sched,active&active=eq.true&order=sort"), pins = await sb("/rest/v1/staff_pins?select=" + PIN_COLS);
     LOCK_BUSY = false; render();
     var kind = function(s){ return (s.sched && s.sched.ext && s.sched.ext.kind) || "regular"; };
-    var pick = await uiChoice("어느 계정으로 들어갈까요?", "", [["대표", "owner"], ["매니저", "manager"], ["정규직", "regular"], ["파트타이머", "part"], ["개인", "one"]]);
+    var pick = await uiChoice("어느 계정으로 들어갈까요?", "", [["대표", "owner"], ["매니저", "manager"], ["정규직", "regular"], ["파트타이머", "part"], ["개인", "one"]], "ok");
     if(!pick){ sessionClear(); return; }
     var who = null;
     if(pick === "regular" || pick === "part") who = rows.filter(function(s){ return kind(s) === pick; })[0];
-    if(pick === "one"){ var id = await uiChoice("누구로 들어갈까요?", "", rows.map(function(s){ return [s.nick || s.name, s.id]; })); if(!id){ sessionClear(); return; } who = rows.filter(function(s){ return s.id === id; })[0]; }
+    if(pick === "one"){ var id = await uiChoice("누구로 들어갈까요?", "", rows.map(function(s){ return [s.nick || s.name, s.id]; }), "ok"); if(!id){ sessionClear(); return; } who = rows.filter(function(s){ return s.id === id; })[0]; }
     if((pick === "regular" || pick === "part") && !who){ await uiAlert("해당하는 직원이 없습니다", "", "warn"); sessionClear(); return; }
     var pinOf = who ? pins.filter(function(u){ return u.staff_id === who.id; })[0] : null;
     SESSION.name = "관리자";
@@ -6412,8 +6413,8 @@ function modalAnswer(v){
   if(m) m.res(v);
 }
 /* 선택지 팝업 — [[라벨, 값], …]. 취소면 null */
-function uiChoice(title, msg, choices){
-  return new Promise(res => { modalReplace({mode:"choice", title, msg, tone:"warn", choices, cancel:"그만두기", res}); });
+function uiChoice(title, msg, choices, tone){
+  return new Promise(res => { modalReplace({mode:"choice", title, msg, tone:tone || "warn", choices, cancel:"그만두기", res}); });
 }
 /* 한 줄 입력 팝업 — 관리자 비밀번호 등. 취소면 null */
 function uiPrompt(title, msg, opt){
