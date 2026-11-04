@@ -1420,7 +1420,6 @@ body.same-modal .modal, body.same-modal .overlay.modal-ov{animation:none}
 .overlay.cust-ov{z-index:65}
 /* 관리자 입구로 들어온 동안 — 실제 계정이 아니라는 표시 */
 .actas-bar{position:fixed; left:8px; bottom:8px; z-index:45; display:flex; align-items:center; gap:var(--s8); padding:var(--s4) var(--s12); border-radius:var(--r-sm); background:var(--text); color:#fff; font-size:var(--fs-label); font-weight:700}
-.actas-bar button{border:none; background:none; color:#fff; font:inherit; text-decoration:underline; cursor:pointer}
 /* 여러 좌석 예약 중지 */
 .bb-seats{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:var(--s4) var(--s8); margin:var(--s8) 0}
 /* ============================================================
@@ -6762,7 +6761,7 @@ function renderStoreCore(){
         </div>
         ${view.moreOpen ? `<div class="more-veil" onclick="closeMore()"></div>` : ""}
       </div></header>`}
-      ${SESSION && SESSION.actAs ? `<div class="actas-bar">관리자 · ${esc(SESSION.actAs.label)}로 사용 중 <button onclick="lockNow()">나가기</button></div>` : ""}
+      ${SESSION && SESSION.actAs ? `<div class="actas-bar">관리자 · ${esc(SESSION.actAs.label)}로 사용 중</div>` : ""}
       <div class="layout">
         <main class="content">${body}</main>
       </div>
