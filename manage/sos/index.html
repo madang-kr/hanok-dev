@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>비상 — 한옥반점</title>
+<link rel="icon" href="/favicon.ico?v=2" sizes="any">
+<!-- ============================================================
+     SOS 비상 페이지 (2026-09-29 재아 · 10-06 · 10-09 다시 짬)
+     서버(Supabase)나 인터넷이 끊겨 예약 시스템이 안 열릴 때, 백업 파일로 예약을 '보기만' 하는 한 장.
+     · 10-09 재아: 열람만 — 비상 접수(이 기기에 새 예약 적어 두기)·내보내기는 뺌. 예전 비상 접수가 기기에 남아 있으면
+       예약 시스템(14j-sos.js)이 서버가 돌아왔을 때 그대로 옮겨 줌(저장 이름 hanok.sos.v1 은 그쪽이 읽음 — 여기서는 안 씀)
+     · 파일은 backup-날짜.json 하나(매일 백업 hanok-backup 저장소 sos/ · 개발자 페이지 '백업 내려받기'). 옛 세 파일·이 페이지의
+       옛 내보내기 파일도 계속 받아 줌. 파일을 가진 사람만 열 수 있으니 PIN 은 안 물음. 파일은 개발자에게 받음
+     · 서버 상태: 20초마다 예약 서버(공개 뷰 하나)를 두드려 봄 — 되살아나면 화면 전체가 빨강 → 초록으로 바뀌고
+       '예약 시스템으로 돌아가기' 단추가 나옴(바로 넘어가지 않음 — 누를 때만). 접속 정보는 홈페이지와 같은 /js/config.js(공개 키)
+     · 서버에 아무것도 보내지 않음(읽기 한 번뿐). 인터넷이 없어도 열리게 sw.js 가 이 장을 기기에 저장(고치면 sw.js 의 VER 을 올림)
+     구형 기기도 열리게 ?. ?? 같은 새 문법은 쓰지 않음
+     ============================================================ -->
+<script src="/js/config.js"></script>
+<style>
+  @font-face{font-family:"PT"; src:url(/fonts/Pretendard-Regular.woff2) format("woff2"); font-weight:400; font-display:swap}
+  @font-face{font-family:"PT"; src:url(/fonts/Pretendard-SemiBold.woff2) format("woff2"); font-weight:600; font-display:swap}
+  @font-face{font-family:"PT"; src:url(/fonts/Pretendard-Bold.woff2) format("woff2"); font-weight:700; font-display:swap}
+  /* 10-09 재아: 둥글둥글·촌스러움 → 각진 모서리(6px), 얇은 선, 색은 머리띠에만. 서버가 돌아오면 같은 자리 색이 초록으로 */
+  :root{--bg:#F6F4F2; --card:#fff; --text:#1A1817; --sub:#6D6863; --line:#E4E0DB; --c:#B3261E; --c-d:#8C1D18; --c-soft:#FBEAE8}
+  body.ok{--c:#1F7A4D; --c-d:#165C3A; --c-soft:#E6F3EC}
+  *{box-sizing:border-box}
+  html,body{margin:0; background:var(--bg); color:var(--text); font:15px/1.55 "PT","Apple SD Gothic Neo","Malgun Gothic",sans-serif; -webkit-text-size-adjust:100%}
+  button,input,textarea{font:inherit; color:inherit}
+  a{color:inherit}
+  /* 머리띠 — 왼쪽 ! 와 제목, 오른쪽 서버 상태 */
+  .bar{background:var(--c); color:#fff; transition:background .6s}
+  .bar-in{max-width:880px; margin:0 auto; padding:12px 16px; display:flex; align-items:center; gap:12px}
+  .sig{flex:none; width:28px; height:28px; border:2px solid #fff; border-radius:4px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:17px; line-height:1}
+  .bar h1{margin:0; font-size:17px; font-weight:700; letter-spacing:-.01em; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .srv{flex:none; display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600}
+  .srv .dot{width:8px; height:8px; border-radius:50%; background:#fff; opacity:.9}
+  body:not(.ok) .srv .dot{animation:blink 1.4s infinite}
+  @keyframes blink{50%{opacity:.25}}
+  .srv a{display:none; margin-left:4px; padding:6px 12px; border-radius:4px; background:#fff; color:var(--c-d); text-decoration:none; font-weight:700}
+  body.ok .srv a{display:inline-block}
+  .wrap{max-width:880px; margin:0 auto; padding:20px 16px 48px}
+  .muted{color:var(--sub); font-size:13.5px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:6px; padding:20px}
+  .btn{display:inline-flex; align-items:center; justify-content:center; height:38px; border:1px solid var(--line); background:var(--card); border-radius:4px; padding:0 14px; cursor:pointer; font-weight:600; white-space:nowrap; text-decoration:none}
+  .btn:hover{border-color:#C9C3BC}
+  .btn.primary{background:var(--c); border-color:var(--c); color:#fff}
+  .btn.sm{height:32px; padding:0 10px; font-size:13.5px}
+  .btn.icon{width:32px; padding:0; height:32px; border-radius:50%; font-weight:700}
+  input[type=text], input[type=date], textarea{border:1px solid var(--line); border-radius:4px; padding:8px 10px; background:#fff; width:100%; min-width:0}
+  input:focus, textarea:focus{outline:2px solid var(--c); outline-offset:-1px; border-color:var(--c)}
+  /* ---- 첫 화면 ---- */
+  .start{max-width:520px; margin:6vh auto 0}
+  .st-h{display:flex; align-items:flex-start; gap:12px}
+  .st-h div{flex:1}
+  .st-h h2{margin:0; font-size:18px}
+  .st-h p{margin:4px 0 0}
+  .pick{position:relative; display:block; margin:18px 0 0; border:1px dashed #BDB6AE; border-radius:6px; padding:26px 16px; text-align:center; cursor:pointer; background:#FCFBFA}
+  .pick:hover, .pick.over{border-color:var(--c); background:var(--c-soft)}
+  .pick b{display:block; font-size:16px; color:var(--c)}
+  .pick input{position:absolute; width:1px; height:1px; opacity:0; pointer-events:none}   /* 기본 파일 칸은 기기마다 모양이 달라 숨기고 이 상자가 대신 */
+  .pick.off{opacity:.4; cursor:not-allowed; background:#F3F1EF; border-color:var(--line)}
+  .pick.off b{color:var(--sub)}
+  .files{margin:10px 0 0; padding:0; list-style:none; font-size:13.5px} .files li i{font-style:normal; color:var(--sub)}
+  .sw-row{display:flex; align-items:center; justify-content:space-between; margin-top:16px; padding-top:14px; border-top:1px solid var(--line); font-weight:600; font-size:14px}
+  .sw{position:relative; width:40px; height:22px; border-radius:11px; border:0; background:#CFC9C2; cursor:pointer; padding:0; transition:background .2s}
+  .sw:after{content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%; background:#fff; transition:left .2s}
+  .sw.on{background:var(--c)} .sw.on:after{left:21px}
+  .paste{margin-top:10px} .paste textarea{min-height:110px; resize:vertical; font-size:13px}
+  .paste .btn{margin-top:8px}
+  .err{color:var(--c); font-size:13.5px; font-weight:700; min-height:20px; margin-top:10px}
+  /* ---- 본 화면 ---- */
+  .note{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:10px 14px; margin-bottom:12px; border-left:3px solid var(--c); background:var(--card); border-radius:0 4px 4px 0; font-size:13.5px}
+  .note a{font-weight:600}
+  .dnav{display:grid; grid-template-columns:38px 1fr 38px 38px; gap:8px; align-items:center; padding:6px; margin:-6px; border-radius:4px; transition:background .2s}
+  .dnav .btn{padding:0}
+  .dnav b{font-size:17px; text-align:center; white-space:nowrap; line-height:1.2}
+  .dnav b small{display:block; font-size:11px; font-weight:600; opacity:.7}
+  .dnav.notnow{background:#1A1817; color:#fff} .dnav.notnow .btn{background:transparent; color:#fff; border-color:rgba(255,255,255,.35)}
+  .dnav.notnow b{cursor:pointer}
+  .btn.pr svg{width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linejoin:round}
+  .dtools{display:flex; gap:8px; margin-top:16px} .dtools input{flex:1}
+  .res{cursor:pointer} .res:hover{background:#FAF8F6}
+  .kv{width:100%; border-collapse:collapse; font-size:14px} .kv th{width:84px; text-align:left; vertical-align:top; color:var(--sub); font-weight:600; padding:5px 8px 5px 0} .kv td{padding:5px 0; overflow-wrap:anywhere}
+  .kv tr + tr th, .kv tr + tr td{border-top:1px solid var(--line)}
+  .chg{margin-top:12px; font-size:13px} .chg ul{margin:6px 0 0; padding-left:16px; max-height:160px; overflow:auto}
+  .dlg{max-height:calc(100vh - 32px); overflow:auto}
+  .search{margin-top:8px}
+  .sum{margin:16px 0 4px; font-size:13px; color:var(--sub); font-weight:600}
+  .res{display:grid; grid-template-columns:86px minmax(0,1fr) auto; gap:2px 10px; padding:11px 0; border-top:1px solid var(--line); align-items:baseline}
+  .res .t{font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums}
+  .res .n{font-weight:700; min-width:0; overflow-wrap:anywhere}
+  .res .p{white-space:nowrap; font-weight:600}
+  .res .s{grid-column:2 / 4; color:var(--sub); font-size:13.5px; overflow-wrap:anywhere}
+  .res.gone{opacity:.5}
+  .tag{display:inline-block; padding:0 6px; border-radius:3px; font-size:11.5px; font-weight:700; border:1px solid var(--line); margin-left:6px; vertical-align:2px; white-space:nowrap}
+  .empty{color:var(--sub); padding:20px 0; text-align:center}
+  .tag.vip{color:#8A5E0E; border-color:#D9B66E; background:#FBF3E2} .tag.vvip{color:#fff; background:#B08A3E; border-color:#B08A3E} .tag.grp{color:#2F5BA8; border-color:#AFC4E6; background:#EEF3FB}
+  .search{display:flex; gap:10px; align-items:center} .search input{flex:1}
+  .allsw{flex:none; display:flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:var(--sub); cursor:pointer}
+  .res .t .dt{display:block; font-size:11.5px; font-weight:600; color:var(--sub)}
+  .print-h{display:none}
+  /* ---- 작은 창(도움말·안내) ---- */
+  .ov{position:fixed; top:0; right:0; bottom:0; left:0; background:rgba(20,18,16,.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:10}
+  .dlg{background:#fff; border-radius:6px; max-width:420px; width:100%; padding:20px; box-shadow:0 12px 40px rgba(0,0,0,.25)}
+  .dlg h3{margin:0 0 10px; font-size:16px}
+  .dlg ul{margin:0; padding-left:18px} .dlg li{margin:6px 0}
+  .dlg .row{display:flex; justify-content:flex-end; margin-top:16px}
+  @media (max-width:560px){
+    .bar h1{font-size:15px} .srv .lbl{display:none}
+    .res{grid-template-columns:82px minmax(0,1fr) auto; gap:2px 8px}
+  }
+  @media print{
+    .noprint, .bar, .ov{display:none !important} body{background:#fff} .wrap{padding:0} .card{border:none; padding:0}
+    .print-h{display:block; font-size:18px; margin:0 0 8px} .res{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<header class="bar noprint"><div class="bar-in">
+  <span class="sig" aria-hidden="true">!</span><h1>한옥반점 예약 비상 페이지</h1>
+  <span class="srv" id="srv"><span class="dot"></span><span><span class="lbl">서버 상태 : </span><b id="srv-t">확인 중</b></span><a href="/" id="srv-go">예약 시스템으로 돌아가기</a></span>
+</div></header>
+<div class="wrap" id="app"></div>
+<div id="dlg"></div>
+<script>
+(function(){
+  "use strict";
+  var app = document.getElementById("app"), dlg = document.getElementById("dlg");
+  var S = { ok:false, paste:false, date:"", q:"", all:false, cache:null, err:"", picked:[] };
+
+  function pad(n){ return (n < 10 ? "0" : "") + n; }
+  function ymd(d){ return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+  function today(){ var d = new Date(); if(d.getHours() < 4) d.setDate(d.getDate() - 1); return ymd(d); }   /* 새벽 4시 전은 전날 영업(예약 시스템과 같게) */
+  function shift(ds, n){ var d = new Date(ds + "T00:00:00"); d.setDate(d.getDate() + n); return ymd(d); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+  function dlabel(ds){ var d = new Date(ds + "T00:00:00"); return (d.getMonth() + 1) + "월 " + d.getDate() + "일 (" + "일월화수목금토"[d.getDay()] + ")"; }
+  function hm(t){ if(!t) return ""; var p = String(t).split(":"), h = +p[0]; return (h < 12 ? "오전 " : "오후 ") + (h % 12 || 12) + ":" + p[1]; }
+  function fmtPhone(p){ var d = String(p || "").replace(/\D/g, ""); if(d.length === 11) return d.slice(0, 3) + "-" + d.slice(3, 7) + "-" + d.slice(7); if(d.length === 10) return d.slice(0, 3) + "-" + d.slice(3, 6) + "-" + d.slice(6); return String(p || ""); }   /* 백업 파일은 숫자만 */
+  function fmtAt(s){ var d = s ? new Date(s) : null; if(!d || isNaN(d.getTime())) return "알 수 없음"; return (d.getMonth() + 1) + "월 " + d.getDate() + "일 " + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function store(){ var d = S.cache && S.cache.data; return d && (d.hanok || d[Object.keys(d)[0]]) || null; }
+  /* 좌석 이름: 룸은 '조조 룸', 숫자 이름 테이블은 '22번 테이블', 그 밖의 테이블(여포 등)은 이름 그대로 */
+  function seatName(id){
+    var st = store(); if(!id || !st) return "";
+    var r = ((st.settings || {}).rooms || []).filter(function(x){ return x.id === id; })[0]; if(!r) return "";
+    if(r.type === "room") return r.name + " 룸";
+    return /^\d/.test(r.name) ? r.name + "번 테이블" : r.name;
+  }
+  function seatOf(r){
+    if(r.roomId) return seatName(r.roomId) + ((r.extraIds || []).length ? " 외 " + r.extraIds.length : "");
+    var p = String(r.seatPref || ""); return p.indexOf("room") === 0 ? "룸" : p.indexOf("table") === 0 ? ((p.split(":")[1] || "") + " 테이블").trim() : "";   /* 자리를 안 정한 예약은 '룸'·'1층 테이블' 까지만(예약 시스템과 같게) */
+  }
+
+  /* 등급·단체 딱지(10-09 재아) — 예약 시스템과 같은 셈: 전화번호별 (방문 수 − 노쇼 × 기준), 기준값은 백업의 매장 설정.
+     사장님이 손님 관리에서 직접 정한 등급·블랙리스트는 백업 파일에 없어서 자동 등급만 */
+  var TIER = null;
+  function tierIndex(){
+    if(TIER) return TIER;
+    var st = store(), set = (st && st.settings) || {}, ex = set.noshowExcluded || [], idx = {};
+    (st ? st.reservations : []).forEach(function(r){ var d = String(r.phone || "").replace(/\D/g, ""); if(d.length < 8) return; var g = idx[d] || (idx[d] = { v:0, n:0 }); if(r.status === "방문") g.v++; else if(r.status === "노쇼" && ex.indexOf(d) < 0) g.n++; });
+    var vip = Number(set.tierVip) || 2, vvip = Number(set.tierVvip) || 5, ns = set.tierNoshow != null && set.tierNoshow !== "" ? Number(set.tierNoshow) : 5;
+    Object.keys(idx).forEach(function(k){ var g = idx[k], sc = g.v - ns * g.n; g.t = sc >= vvip ? "VVIP" : sc >= vip ? "VIP" : ""; });
+    return (TIER = idx);
+  }
+  function tags(r){
+    var st = store(), set = (st && st.settings) || {}, d = String(r.phone || "").replace(/\D/g, ""), g = d.length >= 8 && tierIndex()[d], out = "";
+    if(g && g.t) out += '<span class="tag ' + (g.t === "VVIP" ? "vvip" : "vip") + '">' + g.t + '</span>';
+    if((r.people || 0) >= (Number(set.groupSize) || 8)) out += '<span class="tag grp">단체</span>';
+    return out;
+  }
+
+  /* ---------- 서버 상태 ---------- */
+  /* 공개 뷰 하나를 읽어 봄(읽기만, 손님 정보 없음). 되면 화면이 초록으로 + 돌아가기 단추. 실패하면 빨강 그대로 */
+  var SRV_OK = null;
+  function srvCheck(){
+    var c = window.SUPA;
+    if(!c || !c.url){ srvSet(false); return; }
+    var done = false, t = setTimeout(function(){ if(!done){ done = true; srvSet(false); } }, 8000);
+    fetch(c.url + "/rest/v1/public_screen?select=store&limit=1", { cache:"no-store", headers:{ apikey:c.anonKey, Authorization:"Bearer " + c.anonKey } })
+      .then(function(r){ if(!done){ done = true; clearTimeout(t); srvSet(r.ok); } }, function(){ if(!done){ done = true; clearTimeout(t); srvSet(false); } });
+  }
+  function srvSet(ok){
+    SRV_OK = ok;
+    document.body.className = ok ? "ok" : "";
+    document.getElementById("srv-t").textContent = ok ? "정상" : "오류";
+  }
+  srvCheck(); setInterval(srvCheck, 20000);
+
+  /* ---------- 작은 창 ---------- */
+  function showDlg(title, html){
+    dlg.innerHTML = '<div class="ov" id="ov"><div class="dlg" role="dialog" aria-modal="true"><h3>' + esc(title) + '</h3>' + html + '<div class="row"><button class="btn primary" id="dlg-ok">확인</button></div></div></div>';
+    var close = function(){ dlg.innerHTML = ""; };
+    document.getElementById("dlg-ok").onclick = close;
+    document.getElementById("ov").onclick = function(e){ if(e.target.id === "ov") close(); };
+    document.getElementById("dlg-ok").focus();
+  }
+  function showHelp(){
+    showDlg("백업 파일이란?", '<ul>' +
+      '<li>파일 형식 : <b>backup-날짜.json</b><br><span class="muted">(예: backup-2026-10-09.json)</span></li>' +
+      '<li>백업 파일은 매일 새벽 자동으로 저장됩니다. <b>개발자에게 요청</b>하여 파일을 받을 수 있습니다.</li>' +
+      '<li>백업 시점 이후 변경된 데이터는 반영되지 않습니다.</li></ul>');
+  }
+
+  /* ---------- 화면 ---------- */
+  function render(){
+    if(!S.ok){ app.innerHTML = startHtml(); bindStart(); return; }
+    app.innerHTML = '<div class="note noprint"><span>백업 시각 <b>' + esc(fmtAt(S.cache.at)) + '</b> — 백업 이후 변경된 데이터는 반영되지 않습니다.</span><a href="#" id="reopen">다른 파일 열기</a></div>' + listHtml();
+    bind();
+  }
+  function startHtml(){
+    return '<div class="start"><div class="card">' +
+      '<div class="st-h"><div><h2>백업 파일로 예약 보기</h2><p class="muted">예약 서버 문제 발생 시 백업 파일로 예약을 볼 수 있습니다.</p></div>' +
+        '<button class="btn icon" id="help" aria-label="백업 파일이란?" title="백업 파일이란?">?</button></div>' +
+      '<label class="pick' + (S.paste ? ' off' : '') + '" id="pick"><input type="file" id="l-file" accept=".json,.txt,application/json,text/plain" multiple' + (S.paste ? ' disabled' : '') + '>' +
+        '<b>백업 파일 첨부하기</b><span class="muted">파일을 선택하거나 끌어다 놓으세요</span></label>' +
+      (S.picked.length && !S.paste ? '<ul class="files">' + S.picked.map(function(f){ return '<li>· ' + esc(f.name) + ' <i>' + Math.max(1, Math.round(f.size / 1024)) + 'KB</i></li>'; }).join("") + '</ul>' : '') +
+      /* 10-09 재아: 펼치기 대신 스위치 — 켜면 파일 첨부는 막힘(둘 중 하나만) */
+      '<div class="sw-row"><span>텍스트로 붙여 넣기</span><button class="sw' + (S.paste ? ' on' : '') + '" id="sw" role="switch" aria-checked="' + S.paste + '" aria-label="텍스트로 붙여 넣기"></button></div>' +
+      (S.paste ? '<div class="paste"><textarea id="l-paste" placeholder="백업 파일 내용을 여기에 붙여 넣으세요"></textarea><button class="btn primary" id="l-paste-go">열기</button></div>' : '') +
+      '<div class="err">' + esc(S.err) + '</div></div></div>';
+  }
+  function bindStart(){
+    var inp = document.getElementById("l-file"), pick = document.getElementById("pick");
+    document.getElementById("help").onclick = showHelp;
+    document.getElementById("sw").onclick = function(){ S.paste = !S.paste; S.err = ""; render(); if(S.paste){ var ta = document.getElementById("l-paste"); if(ta) ta.focus(); } };
+    if(!S.paste){
+      inp.onchange = function(){ readFiles(Array.prototype.slice.call(inp.files || [])); };
+      /* 끌어다 놓기(PC) */
+      pick.ondragover = function(e){ e.preventDefault(); pick.className = "pick over"; };
+      pick.ondragleave = function(){ pick.className = "pick"; };
+      pick.ondrop = function(e){ e.preventDefault(); pick.className = "pick"; readFiles(Array.prototype.slice.call((e.dataTransfer && e.dataTransfer.files) || [])); };
+    }else{
+      pick.onclick = function(e){ e.preventDefault(); };
+      document.getElementById("l-paste-go").onclick = function(){ var t = document.getElementById("l-paste").value; if(!t.trim()){ S.err = "붙여 넣은 내용이 없습니다."; return render(); } loadTexts([{ name:"붙여 넣은 내용", text:t }]); };
+    }
+  }
+  function readFiles(files){
+    if(!files.length) return;
+    S.picked = files.map(function(f){ return { name:f.name, size:f.size }; });
+    var texts = [], left = files.length;
+    files.forEach(function(file){
+      var r = new FileReader();
+      r.onload = function(){ texts.push({ name:file.name, text:String(r.result || "") }); if(--left === 0) loadTexts(texts); };
+      r.onerror = function(){ if(--left === 0) loadTexts(texts); };
+      r.readAsText(file);
+    });
+  }
+
+  /* ---------- 백업 읽기 ---------- */
+  /* 서버 행(reservations.json) → 예약 시스템 모양. 모양이 이상한 줄·지운 줄은 버림 */
+  function rowToRes(row){
+    if(!row || !/^\d{4}-\d{2}-\d{2}$/.test(String(row.date)) || !/^\d{2}:\d{2}$/.test(String(row.time)) || row.deleted_at) return null;
+    var r = {}, k, d = row.data || {};
+    for(k in d) if(Object.prototype.hasOwnProperty.call(d, k)) r[k] = d[k];
+    r.id = String(row.id || ""); r.date = row.date; r.time = row.time; r.status = row.status || "확정"; r.name = String(row.name || "");
+    r.phone = String(row.phone || ""); r.people = parseInt(row.people, 10) || 0; r.roomId = row.room_id || null;
+    r._upd = row.updated_at || ""; r._created = row.created_at || "";
+    return r;
+  }
+  function loadTexts(texts){
+    try{ loadTextsGo(texts); }catch(e){ S.err = "파일을 읽다가 멈췄습니다 — 모양이 다른 파일 같습니다. backup-날짜.json 을 넣어 주세요."; S.ok = false; S.cache = null; render(); }   /* 전엔 말없이 첫 화면에 멈춤(10-09 점검) */
+  }
+  function loadTextsGo(texts){
+    var res = null, settings = null, name = "", at = "", cache = null, bad = [];
+    texts.forEach(function(t){
+      var s0 = t.text.replace(/^﻿/, "").trim();
+      /* backup-at.txt — "2026-10-06T09:00:00Z 전체" 처럼 시각 뒤에 글이 붙음 */
+      var m = s0.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)(\s|$)/); if(m && s0.charAt(0) !== "[" && s0.charAt(0) !== "{"){ at = m[1]; return; }
+      var o; try{ o = JSON.parse(s0); }catch(e){ bad.push(t.name); return; }
+      if(o && o.kind === "hanok-sos-backup" && o.data){ cache = o.data; at = at || o.cacheAt || o.at || ""; return; }   /* 이 페이지의 옛 내보내기 */
+      /* 한 파일 백업(10-06): 매일 백업의 sos/backup-날짜.json · 개발자 페이지 '백업 내려받기' — {at, stores:[…], reservations:[…]} */
+      if(o && !Array.isArray(o) && Array.isArray(o.reservations)){
+        res = (res || []).concat(o.reservations.filter(function(x){ return x && (!x.store || x.store === "hanok"); }).map(rowToRes).filter(Boolean));
+        if(o.at && o.at > at) at = o.at;
+        if(Array.isArray(o.stores) && o.stores.length){ var hs = o.stores.filter(function(x){ return x.key === "hanok"; })[0] || o.stores[0]; settings = hs.settings || {}; name = hs.name || ""; }
+        at = at || o.at || ""; return;
+      }
+      if(Array.isArray(o) && o.length && o[0] && o[0].settings && o[0].key){ var h = o.filter(function(x){ return x.key === "hanok"; })[0] || o[0]; settings = h.settings || {}; name = h.name || ""; return; }   /* stores.json */
+      if(Array.isArray(o) && (!o.length || (o[0] && o[0].date && o[0].time))){ res = (res || []).concat(o.filter(function(x){ return x && (!x.store || x.store === "hanok"); }).map(rowToRes).filter(Boolean)); return; }   /* reservations.json */
+      bad.push(t.name);
+    });
+    if(!cache && !res){
+      S.err = bad.length ? "읽을 수 없는 파일입니다: " + bad.join(", ") + " — backup-날짜.json 을 넣어 주세요." : "예약이 든 파일이 아닙니다 — backup-날짜.json 을 넣어 주세요.";
+      return render();
+    }
+    if(cache && (!cache.hanok || !Array.isArray(cache.hanok.reservations))){ S.err = "예약이 든 파일이 아닙니다 — backup-날짜.json 을 넣어 주세요."; return render(); }
+    /* 여러 날 백업을 한꺼번에 열면 같은 예약이 두 번 — 번호마다 가장 늦게 고친 것만(10-09 점검) */
+    if(res){ var byId = {}; res.forEach(function(r){ var k = r.id || Math.random(); if(!byId[k] || (r._upd || "") > (byId[k]._upd || "")) byId[k] = r; }); res = Object.keys(byId).map(function(k){ return byId[k]; }); }
+    if(!cache){
+      var last = ""; res.forEach(function(r){ if((r._upd || "") > last) last = r._upd; });
+      cache = { hanok:{ name:name || "한옥반점", settings:settings || {}, reservations:res } };
+      at = at || last;   /* 백업 시각이 없으면 가장 늦게 고친 예약 시각으로 */
+    }else if(settings && cache.hanok && !(cache.hanok.settings || {}).rooms){ cache.hanok.settings = settings; }
+    S.cache = { at:at, data:cache }; TIER = null; S.ok = true; S.date = S.date || today(); S.err = "";
+    S.noSeats = !(((store() || {}).settings || {}).rooms || []).length;
+    render();
+    /* 10-09 재아: 개인정보 안내는 첫 화면 글 대신, 파일을 연 뒤 한 번 */
+    showDlg("손님 정보가 들어 있는 파일입니다", '<p style="margin:0">이 백업 파일에는 손님 <b>이름과 전화번호</b>가 들어 있습니다.<br>다 보신 뒤에는 기기에서 파일을 <b>지워 주세요.</b></p>');
+  }
+
+  /* ---------- 예약 보기 ---------- */
+  function dayRows(ds){
+    var st = store(), q = S.q.trim().toLowerCase(), qd = q.replace(/\D/g, ""), all = S.all && q;
+    /* '모든 날짜' 를 켜고 찾으면 날짜와 상관없이 그 손님의 예약 전부(10-09 재아: 손님 검색) — 최근 날짜가 위 */
+    var rows = (st ? st.reservations : []).filter(function(r){ return (all || r.date === ds) && r.status !== "취소"; });
+    if(q) rows = rows.filter(function(r){ return String(r.name || "").toLowerCase().indexOf(q) >= 0 || (qd.length >= 2 && String(r.phone || "").replace(/\D/g, "").indexOf(qd) >= 0); });
+    return all ? rows.sort(function(a, b){ return (b.date + b.time).localeCompare(a.date + a.time); }) : rows.sort(function(a, b){ return String(a.time).localeCompare(String(b.time)); });
+  }
+  function listHtml(){
+    var rows = dayRows(S.date), teams = 0, ppl = 0;
+    rows.forEach(function(r){ if(r.status !== "노쇼"){ teams++; ppl += r.people || 0; } });
+    var body = rows.length ? rows.map(function(r){
+      var gone = r.status === "노쇼" || r.status === "방문";
+      var allMode = S.all && S.q.trim();
+      return '<div class="res' + (gone ? " gone" : "") + '" data-res="' + esc(r.id) + '" role="button" tabindex="0"><span class="t">' + (allMode ? '<small class="dt">' + esc(dlabel(r.date)) + '</small>' : '') + esc(hm(r.time)) + '</span>' +
+        '<span class="n">' + esc(r.name) + tags(r) + (gone ? '<span class="tag">' + esc(r.status) + '</span>' : '') + '</span>' +
+        '<span class="p">' + esc((r.people || 0) + "명" + (r.infants ? " (어린이 " + r.infants + ")" : "")) + '</span>' +
+        '<span class="s">' + esc([seatOf(r), fmtPhone(r.phone), r.request, r.allergy ? "알러지 " + r.allergy : "", r.memo].filter(Boolean).join(" · ")) + '</span></div>';
+    }).join("") : '<div class="empty">' + (S.q ? "검색 결과가 없습니다" : "이 날 예약이 없습니다") + '</div>';
+    /* 10-09 재아: '오늘' 단추 대신 — 다른 날을 보면 날짜 줄이 검게(예약 시스템 상단바와 같은 약속), 가운데 날짜를 누르면 오늘로. 인쇄는 오른쪽 위 아이콘 */
+    var notToday = S.date !== today();
+    return '<div class="card"><div class="dnav noprint' + (notToday ? ' notnow' : '') + '"><button class="btn" data-d="-1" aria-label="전날">‹</button>' +
+        '<b' + (notToday ? ' data-today role="button" tabindex="0" title="오늘로"' : '') + '>' + esc(dlabel(S.date)) + (notToday ? '<small>오늘로</small>' : '') + '</b>' +
+        '<button class="btn" data-d="1" aria-label="다음 날">›</button>' +
+        '<button class="btn pr" id="print" aria-label="인쇄" title="인쇄"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V4h10v5"/><rect x="4" y="9" width="16" height="7" rx="1"/><path d="M7 14h10v6H7z"/></svg></button></div>' +
+      '<div class="dtools noprint"><input type="date" id="dpick" value="' + S.date + '"></div>' +
+      '<div class="search noprint"><input type="text" id="q" value="' + esc(S.q) + '" placeholder="이름 또는 전화번호로 찾기"><label class="allsw"><button class="sw' + (S.all ? ' on' : '') + '" id="allsw" role="switch" aria-checked="' + S.all + '" aria-label="모든 날짜에서 찾기"></button>모든 날짜</label></div>' +
+      (S.noSeats ? '<p class="muted noprint" style="margin:10px 0 0">파일에 매장 설정이 없어 좌석 이름이 안 나옵니다.</p>' : '') +
+      '<h2 class="print-h">한옥반점 예약 · ' + esc(dlabel(S.date)) + '</h2>' +
+      '<div class="sum">' + (S.all && S.q.trim() ? "모든 날짜에서 " + rows.length + "건" : rows.length ? teams + "팀 · " + ppl + "명" : "") + '</div>' + body + '</div>';
+  }
+  function bind(){
+    Array.prototype.forEach.call(document.querySelectorAll("[data-d]"), function(b){ b.onclick = function(){ S.date = shift(S.date, +b.getAttribute("data-d")); render(); }; });
+    var t = document.querySelector("[data-today]"); if(t) t.onclick = function(){ S.date = today(); render(); };
+    var dp = document.getElementById("dpick"); if(dp) dp.onchange = function(){ if(dp.value){ S.date = dp.value; render(); } };
+    /* 한글 조합 중(ㅎ→하→한)에 화면을 다시 그리면 글자가 깨짐 — 조합이 끝났을 때 그림(10-09 점검) */
+    var q = document.getElementById("q"); if(q){ q.addEventListener("compositionend", function(){ q.oninput({}); }); q.oninput = function(e){ S.q = q.value; if(e && e.isComposing) return; var pos = q.selectionStart; render(); var q2 = document.getElementById("q"); q2.focus(); try{ q2.setSelectionRange(pos, pos); }catch(e){} }; }
+    var pr = document.getElementById("print"); if(pr) pr.onclick = function(){ window.print(); };
+    var as = document.getElementById("allsw"); if(as) as.onclick = function(){ S.all = !S.all; render(); var q3 = document.getElementById("q"); if(q3) q3.focus(); };
+    Array.prototype.forEach.call(document.querySelectorAll("[data-res]"), function(el){ el.onclick = function(){ showRes(el.getAttribute("data-res")); }; el.onkeydown = function(e){ if(e.key === "Enter") showRes(el.getAttribute("data-res")); }; });
+    var ro = document.getElementById("reopen"); if(ro) ro.onclick = function(e){ e.preventDefault(); S.ok = false; S.cache = null; S.picked = []; S.err = ""; render(); };
+  }
+
+  /* 예약 하나 자세히(10-09 재아) — 백업에 든 것 전부: 경로·식사·요청·알러지·메모·등록 일시·마지막 수정·변경 기록 */
+  function fmtFull(s){ var d = s ? new Date(s) : null; if(!d || isNaN(d.getTime())) return ""; return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function showRes(id){
+    var st = store(), r = st && st.reservations.filter(function(x){ return x.id === id; })[0]; if(!r) return;
+    var courses = Object.keys(r.courses || {}).filter(function(k){ return r.courses[k] > 0; }).map(function(k){ return (k.split("|")[1] || k) + (r.courses[k] > 1 ? " ×" + r.courses[k] : ""); }).join(", ");
+    var meal = (r.menuType || "") + (courses ? " · " + courses : "") + (r.courseUndecided ? " (미정)" : "");
+    var row = function(k, v){ return v ? '<tr><th>' + esc(k) + '</th><td>' + esc(v) + '</td></tr>' : ""; };
+    var ch = (r.changes || []).slice().reverse().map(function(c){
+      return '<li><span class="muted">' + esc(fmtFull(c.at)) + '</span> ' + esc(c.kind || "") + (c.items && c.items.length ? ' — ' + esc(c.items.map(function(x){ return (x.n || "") + (x.a != null || x.b != null ? " " + (x.a == null ? "" : x.a) + " → " + (x.b == null ? "" : x.b) : ""); }).join(", ")) : '') + '</li>'; }).join("");
+    showDlg(r.name + " 님", (tags(r) ? '<div style="margin:-4px 0 10px">' + tags(r) + '</div>' : '') + '<table class="kv">' +
+      row("일시", dlabel(r.date) + " " + hm(r.time)) +
+      row("인원", (r.people || 0) + "명" + (r.infants ? " (어린이 " + r.infants + ")" : "")) +
+      row("좌석", seatOf(r) || "미정") +
+      row("상태", r.status) +
+      row("전화", fmtPhone(r.phone)) +
+      row("예약 경로", (r.source || "") + (r.sourceDetail ? " · " + r.sourceDetail : "")) +
+      row("식사", meal) +
+      row("요청사항", r.request) +
+      row("알러지", r.allergy) +
+      row("메모", r.memo) +
+      row("등록 일시", fmtFull(r.createdAt || r._created)) +
+      row("마지막 수정", fmtFull(r._upd)) + '</table>' +
+      (ch ? '<div class="chg"><b>변경 기록</b><ul>' + ch + '</ul></div>' : ''));
+  }
+
+  /* 인터넷이 끊겨도 열리게 — 이 장을 기기에 저장 */
+  if("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(function(){});
+  render();
+})();
+</script>
+</body>
+</html>

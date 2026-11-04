@@ -6220,7 +6220,8 @@ function renderLock(){
         <div class="pkeys">${keys}</div>
         ${supaOn() ? "" : `<div class="lk-open"><b>서버 설정이 없는 빌드</b> — supabase.dev.json 또는 supabase.prod.json 을 넣고 다시 빌드하세요</div>`}
         <!-- '매장 다시 고르기' 는 뺌(09-20) — 매장이 하나 -->
-        ${devHosted() ? `<a class="lk-sos" href="http://127.0.0.1:8767/manage/local/">개발서버(로컬)</a>` : `<a class="lk-sos" href="${esc(typeof sosUrl === "function" ? sosUrl() : "sos/")}">서버 오류 비상 페이지</a>`}   <!-- 09-29 재아: SOS. 밖에 올린 개발 화면엔 sos 파일이 없어 대신 이 PC 개발 화면 바로가기(11-04 재아) -->
+        <a class="lk-sos" href="${esc(typeof sosUrl === "function" ? sosUrl() : "sos/")}">서버 오류 비상 페이지</a>   <!-- 09-29 재아: SOS -->
+        ${devHosted() ? `<a class="lk-sos" href="http://127.0.0.1:8767/manage/local/">개발서버(로컬)</a>` : ""}   <!-- 테스트 주소에서 이 PC 개발 화면으로(11-04 재아) -->
       </div>
     </div>`;
 }
