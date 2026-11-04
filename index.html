@@ -1366,6 +1366,10 @@ button.bday.sel .b{background:rgba(255,255,255,.22); color:#fff}
 .md-f.many{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); grid-auto-rows:1fr}
 .md-f.many .btn{min-width:0; padding:var(--s12) var(--s4); font-size:var(--fs-sub); white-space:normal; word-break:keep-all}
 .md-f.many .btn:first-child{order:1; grid-column:1 / -1}
+/* 묶음 제목(직원 고르기: 대표·정규직·파트타이머·일용). 제목 줄은 낮아야 해서 칸 높이 맞춤을 끔 */
+.md-f.grp{grid-auto-rows:auto}
+.md-gh{grid-column:1 / -1; margin-top:var(--s8); font-size:var(--fs-sub); font-weight:700; color:var(--text-2)}
+.md-gh:first-of-type{margin-top:0}
 
 /* ---------- 움직임 (Phase 6-1) — 딱 세 곳만 ----------
    시트는 아래에서 200ms 올라오고, 확인창은 150ms 떠오릅니다. '반응하는 도구' 느낌은 이 정도로 충분하고,
@@ -6216,7 +6220,7 @@ function renderLock(){
         <div class="pkeys">${keys}</div>
         ${supaOn() ? "" : `<div class="lk-open"><b>서버 설정이 없는 빌드</b> — supabase.dev.json 또는 supabase.prod.json 을 넣고 다시 빌드하세요</div>`}
         <!-- '매장 다시 고르기' 는 뺌(09-20) — 매장이 하나 -->
-        ${devHosted() ? "" : `<a class="lk-sos" href="${esc(typeof sosUrl === "function" ? sosUrl() : "sos/")}">서버 오류 비상 페이지</a>`}   <!-- 09-29 재아: SOS. 밖에 올린 개발 화면엔 sos 파일이 없음 -->
+        ${devHosted() ? `<a class="lk-sos" href="http://127.0.0.1:8767/manage/local/">개발서버(로컬)</a>` : `<a class="lk-sos" href="${esc(typeof sosUrl === "function" ? sosUrl() : "sos/")}">서버 오류 비상 페이지</a>`}   <!-- 09-29 재아: SOS. 밖에 올린 개발 화면엔 sos 파일이 없어 대신 이 PC 개발 화면 바로가기(11-04 재아) -->
       </div>
     </div>`;
 }
@@ -6265,6 +6269,18 @@ function pinFailed(){
 /* 관리자 입구(11-04 재아): 로그인 화면 999999 → 개발자 비밀번호 → 들어갈 계정 선택. 고른 계정과 똑같이 쓰고(저장·내 근무까지), 기록만 관리자로 남음.
    비밀번호를 거치므로 번호만 눌러서는 못 들어감. 이 번호는 PIN 으로 쓰지 못하게 막음(ADMIN_PIN) */
 var ADMIN_PIN = "999999";
+/* 직원 고르기 목록 — 대표·매니저·정규직·파트타이머·일용으로 묶음(11-04 재아). 대표 PIN 은 직원 표에 없을 수 있어 따로 넣음 */
+function adminPeople(rows, pins, kind){
+  var out = [], roleOf = function(s){ var p = pins.filter(function(u){ return u.staff_id === s.id; })[0]; return p ? p.role : ""; };
+  var add = function(title, list){ if(!list.length) return; out.push([title, null, true]); list.forEach(function(x){ out.push(x); }); };
+  var item = function(s){ return [s.nick || s.name, s.id]; };
+  var owners = pins.filter(function(u){ return u.role === "owner" && !u.staff_id; }).map(function(u){ return [u.name, "@owner"]; });
+  add("대표", owners.concat(rows.filter(function(s){ return roleOf(s) === "owner"; }).map(item)));
+  add("매니저", rows.filter(function(s){ return roleOf(s) === "manager"; }).map(item));
+  var rest = rows.filter(function(s){ var r = roleOf(s); return r !== "owner" && r !== "manager"; });
+  [["정규직", "regular"], ["파트타이머", "part"], ["일용", "daily"]].forEach(function(g){ add(g[0], rest.filter(function(s){ return kind(s) === g[1]; }).map(item)); });
+  return out;
+}
 async function adminEnter(typed){
   PIN_BUF = ""; PIN_ERR = ""; render();
   var pw = typed || await uiPrompt("관리자 로그인", "개발자 비밀번호를 입력해 주세요.", {password:true}); if(!pw) return;
@@ -6279,7 +6295,8 @@ async function adminEnter(typed){
       pick = await uiChoice("어느 계정으로 들어갈까요?", "", [["대표", "owner"], ["매니저", "manager"], ["정규직", "regular"], ["파트타이머", "part"], ["개인", "one"]], "ok");
       if(!pick){ sessionClear(); return; }
       if(pick !== "one") break;
-      var id = await uiChoice("누구로 들어갈까요?", "", rows.map(function(s){ return [s.nick || s.name, s.id]; }), "ok", "뒤로");
+      var id = await uiChoice("누구로 들어갈까요?", "", adminPeople(rows, pins, kind), "ok", "뒤로");
+      if(id === "@owner"){ pick = "owner"; break; }
       if(id){ who = rows.filter(function(s){ return s.id === id; })[0]; break; }
     }
     if(pick === "regular" || pick === "part") who = rows.filter(function(s){ return kind(s) === pick; })[0];
@@ -6496,9 +6513,9 @@ function renderModal(){
           ${m.check?`<div class="pin-err${m.err?' on':''}" role="alert">${m.busy?'확인 중…':esc(m.err||'')}</div>`:""}
           <div class="pkeys md">${[1,2,3,4,5,6,7,8,9,"clear",0,"back"].map(k=>k==="clear"?`<button class="pkey sub" onclick="pinModalPush('clear')" title="다시 입력">↻</button>`:k==="back"?`<button class="pkey sub" onclick="pinModalPush('back')">←</button>`:`<button class="pkey" onclick="pinModalPush(${k})">${k}</button>`).join("")}</div>
           ${m.keepLabel?`<label class="chk pin-keep"><input type="checkbox" ${m.keep?"checked":""} onchange="MODAL.keep=this.checked"> ${esc(m.keepLabel)}</label>`:""}`:""}${m.mode==="prompt"&&m.money?`<div class="md-money"><input id="md-input" type="text" inputmode="numeric" autocomplete="off" value="${esc(m.value?Number(m.value).toLocaleString("ko-KR"):"")}" autofocus oninput="modalMoney(this)" onkeydown="if(event.key==='Enter') modalPromptAnswer()"><span>원</span></div><div class="md-kor" id="md-kor">${esc(m.value?wonKor(m.value):"")}</div>`:""}${m.mode==="prompt"&&!m.money?`<input id="md-input" type="${m.password?"password":"text"}" value="${esc(m.value||"")}" autofocus style="margin-top:8px; width:100%${m.numeric?"; font-size:24px; letter-spacing:.3em; text-align:center":""}"${m.numeric?' inputmode="numeric" pattern="[0-9]*"':""}${m.maxlen?` maxlength="${m.maxlen}"`:""} onkeydown="if(event.key==='Enter') modalPromptAnswer()">`:""}</div>
-        <div class="md-f${m.mode==="choice"&&(m.choices||[]).length>3?" many":""}">
+        <div class="md-f${m.mode==="choice"&&(m.choices||[]).length>3?" many":""}${m.mode==="choice"&&(m.choices||[]).some(function(c){ return c[2]; })?" grp":""}">
           ${(m.mode==="confirm"&&!m.x)||m.mode==="prompt"||m.mode==="choice"||m.mode==="pin"?`<button class="btn" onclick="modalAnswer(${m.mode==="confirm"?"false":"null"})">${esc(m.cancel)}</button>`:""}
-          ${m.mode==="pin" ? "" : m.mode==="choice" ? (m.choices||[]).map(([lb,v],i)=>`<button class="btn ${m.tone==="warn"&&i===0?"danger-fill":"primary"}" onclick="modalAnswer(${esc(JSON.stringify(v))})">${esc(lb)}</button>`).join("") :
+          ${m.mode==="pin" ? "" : m.mode==="choice" ? (m.choices||[]).map(([lb,v,h],i)=>h?`<div class="md-gh">${esc(lb)}</div>`:`<button class="btn ${m.tone==="warn"&&i===0?"danger-fill":"primary"}" onclick="modalAnswer(${esc(JSON.stringify(v))})">${esc(lb)}</button>`).join("") :
           `<button class="btn ${m.tone==="warn"?"danger-fill":"primary"}" onclick="${m.mode==="prompt"?"modalPromptAnswer()":"modalAnswer(true)"}">
             ${m.mode==="confirm"||m.mode==="prompt"?esc(m.ok):"확인"}</button>`}
         </div>
