@@ -6184,16 +6184,13 @@ function dailyLockExit(){
   var t = SESSION && SESSION.access_token; DAILY_LOCK = null; sessionClear(); render();
   if(t) fetch(SUPA_CFG.url + "/auth/v1/logout", { method:"POST", headers:{ apikey:SUPA_CFG.anonKey, Authorization:"Bearer " + t } }).catch(function(){});
 }
-/* 개발 빌드(11-04 재아) — 실서비스와 헷갈리지 않게 화면 전체에 빨간 테두리. 밖에 올린 개발 화면은 PIN 대신 비밀번호 → 계정 선택(관리자 입구와 같음).
-   이 PC(127.0.0.1)에서는 점검 도구가 키패드를 쓰므로 키패드도 둠 */
+/* 개발 빌드(11-04 재아) — 실서비스와 헷갈리지 않게 화면 전체에 빨간 테두리. 밖에 올린 개발 화면은 키패드 번호가 곧 개발자 비밀번호 → 계정 선택(관리자 입구와 같음).
+   이 PC(127.0.0.1)에서는 점검 도구가 쓰는 PIN 로그인 그대로 */
 function isDevBuild(){ return !!(SUPA_CFG && SUPA_CFG.mode === "dev"); }
 function devHosted(){ return isDevBuild() && !/^(127\.|localhost)/.test(location.hostname); }
 if(isDevBuild()) document.documentElement.classList.add("devframe");
 function renderLock(){
   if(DAILY_LOCK === "dayoff" && SESSION) return renderDailyLock();
-  if(devHosted()) return `<div class="lock"><div class="lockbox"><div class="lk-logo" role="img" aria-label="한옥반점"></div>
-    <div class="lk-err ${LOCK_BUSY?'busy':''}">${LOCK_BUSY ? "확인 중…" : esc(PIN_ERR)}</div>
-    <button class="btn primary lg" onclick="adminEnter()">비밀번호로 로그인</button></div></div>`;
   const s = view.storeKey ? DATA[view.storeKey] : null;
   /* 자리를 채울 때마다 매장 이름 한 글자씩 나타납니다 */
   /* 10-14: PIN 6자리(4자리는 0000~9999 를 차례로 넣어 보면 뚫림) — '분당' + 매장 이름 네 글자(재아: 분당한옥반점 순서) */
@@ -6214,7 +6211,7 @@ function renderLock(){
         <div class="pkeys">${keys}</div>
         ${supaOn() ? "" : `<div class="lk-open"><b>서버 설정이 없는 빌드</b> — supabase.dev.json 또는 supabase.prod.json 을 넣고 다시 빌드하세요</div>`}
         <!-- '매장 다시 고르기' 는 뺌(09-20) — 매장이 하나 -->
-        <a class="lk-sos" href="${esc(typeof sosUrl === "function" ? sosUrl() : "sos/")}">서버 오류 비상 페이지</a>   <!-- 09-29 재아: SOS -->
+        ${devHosted() ? "" : `<a class="lk-sos" href="${esc(typeof sosUrl === "function" ? sosUrl() : "sos/")}">서버 오류 비상 페이지</a>`}   <!-- 09-29 재아: SOS. 밖에 올린 개발 화면엔 sos 파일이 없음 -->
       </div>
     </div>`;
 }
@@ -6227,7 +6224,7 @@ function pinPush(n){
   clearTimeout(PIN_OLD_T);
   if(PIN_BUF.length===PIN_LEN){ PIN_PENDING = true; setTimeout(function(){ PIN_PENDING = false; if(PIN_BUF.length === PIN_LEN) pinCheck(); }, 120); }
   /* 옛 4자리 PIN(10-14 이전에 만든 것) — 네 자리에서 2초 동안 더 누르지 않으면 그대로 확인. 서버의 PIN 을 전부 6자리로 바꾸면 쓸 일이 없음 */
-  else if(PIN_BUF.length===4){ var b4 = PIN_BUF; PIN_OLD_T = setTimeout(function(){ if(PIN_BUF === b4 && !LOCK_BUSY && !AUTHED) pinCheck(); }, 2000); }
+  else if(PIN_BUF.length===4 && !devHosted()){ var b4 = PIN_BUF; PIN_OLD_T = setTimeout(function(){ if(PIN_BUF === b4 && !LOCK_BUSY && !AUTHED) pinCheck(); }, 2000); }
   render();
 }
 var PIN_LEN = 6, PIN_OLD_T = 0;
@@ -6263,9 +6260,9 @@ function pinFailed(){
 /* 관리자 입구(11-04 재아): 로그인 화면 999999 → 개발자 비밀번호 → 들어갈 계정 선택. 고른 계정과 똑같이 쓰고(저장·내 근무까지), 기록만 관리자로 남음.
    비밀번호를 거치므로 번호만 눌러서는 못 들어감. 이 번호는 PIN 으로 쓰지 못하게 막음(ADMIN_PIN) */
 var ADMIN_PIN = "999999";
-async function adminEnter(){
+async function adminEnter(typed){
   PIN_BUF = ""; PIN_ERR = ""; render();
-  var pw = await uiPrompt("관리자 로그인", "개발자 비밀번호를 입력해 주세요.", {password:true}); if(!pw) return;
+  var pw = typed || await uiPrompt("관리자 로그인", "개발자 비밀번호를 입력해 주세요.", {password:true}); if(!pw) return;
   LOCK_BUSY = true; render();
   try{
     await sbLogin(SUPA_CFG.staffEmail.replace("hanok-staff", "madang-dev"), pw);
@@ -6289,12 +6286,14 @@ async function adminEnter(){
     enterAfterLogin();
   }catch(e){
     sessionClear(); LOCK_BUSY = false;
+    if(typed && e.status === 400) pinFailed();
     PIN_ERR = e.status === 400 ? "비밀번호가 맞지 않습니다." : e.status === 429 ? "너무 여러 번 틀렸습니다. 잠시 뒤 다시 시도하세요." : e.network ? "서버에 연결할 수 없습니다" : "로그인 실패: " + e.message;
     render();
   }
 }
 async function pinCheckServer(){
   var pin = PIN_BUF;
+  if(devHosted()) return adminEnter(pin);   /* 밖에 올린 개발 화면(11-04 재아): 키패드 번호 = 개발 서버의 개발자 비밀번호 → 계정 선택 */
   if(pin === ADMIN_PIN) return adminEnter();
   LOCK_BUSY = true; PIN_ERR = ""; render();
   try{
@@ -6365,7 +6364,7 @@ async function lockNow(){
 }
 /* PC에서 키보드로도 입력 */
 function pinKeydown(e){
-  if(AUTHED) return;
+  if(AUTHED || MODAL) return;   /* 창이 떠 있으면 그 창 몫 — 관리자 비밀번호 칸에 숫자가 안 쳐지던 것(11-04 재아) */
   if(/^[0-9]$/.test(e.key)){ e.preventDefault(); pinPush(e.key); }
   else if(e.key==="Backspace"){ e.preventDefault(); pinBack(); }
   else if(e.key==="Escape"){ e.preventDefault(); pinClear(); }
