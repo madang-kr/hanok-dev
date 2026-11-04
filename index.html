@@ -1362,6 +1362,10 @@ button.bday.sel .b{background:rgba(255,255,255,.22); color:#fff}
 /* 줄바꿈: 단추가 많은 선택 창(계정·직원 고르기)이 창 밖으로 잘리던 것(11-04 재아) */
 .md-f{display:flex; flex-wrap:wrap; gap:var(--s8); padding:0 var(--s16) var(--s16); justify-content:flex-end}
 .md-f .btn{min-width:96px; padding:var(--s12) var(--s16); font-size:var(--fs-body)}
+/* 고를 것이 많은 창(계정·직원): 같은 너비 세 칸으로 맞추고, 취소 단추(맨 앞 단추)는 맨 아래 한 줄로(11-04 재아: 이름 길이마다 줄이 어긋나 보임) */
+.md-f.many{display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); grid-auto-rows:1fr}
+.md-f.many .btn{min-width:0; padding:var(--s12) var(--s4); font-size:var(--fs-sub); white-space:normal; word-break:keep-all}
+.md-f.many .btn:first-child{order:1; grid-column:1 / -1}
 
 /* ---------- 움직임 (Phase 6-1) — 딱 세 곳만 ----------
    시트는 아래에서 200ms 올라오고, 확인창은 150ms 떠오릅니다. '반응하는 도구' 느낌은 이 정도로 충분하고,
@@ -6492,7 +6496,7 @@ function renderModal(){
           ${m.check?`<div class="pin-err${m.err?' on':''}" role="alert">${m.busy?'확인 중…':esc(m.err||'')}</div>`:""}
           <div class="pkeys md">${[1,2,3,4,5,6,7,8,9,"clear",0,"back"].map(k=>k==="clear"?`<button class="pkey sub" onclick="pinModalPush('clear')" title="다시 입력">↻</button>`:k==="back"?`<button class="pkey sub" onclick="pinModalPush('back')">←</button>`:`<button class="pkey" onclick="pinModalPush(${k})">${k}</button>`).join("")}</div>
           ${m.keepLabel?`<label class="chk pin-keep"><input type="checkbox" ${m.keep?"checked":""} onchange="MODAL.keep=this.checked"> ${esc(m.keepLabel)}</label>`:""}`:""}${m.mode==="prompt"&&m.money?`<div class="md-money"><input id="md-input" type="text" inputmode="numeric" autocomplete="off" value="${esc(m.value?Number(m.value).toLocaleString("ko-KR"):"")}" autofocus oninput="modalMoney(this)" onkeydown="if(event.key==='Enter') modalPromptAnswer()"><span>원</span></div><div class="md-kor" id="md-kor">${esc(m.value?wonKor(m.value):"")}</div>`:""}${m.mode==="prompt"&&!m.money?`<input id="md-input" type="${m.password?"password":"text"}" value="${esc(m.value||"")}" autofocus style="margin-top:8px; width:100%${m.numeric?"; font-size:24px; letter-spacing:.3em; text-align:center":""}"${m.numeric?' inputmode="numeric" pattern="[0-9]*"':""}${m.maxlen?` maxlength="${m.maxlen}"`:""} onkeydown="if(event.key==='Enter') modalPromptAnswer()">`:""}</div>
-        <div class="md-f">
+        <div class="md-f${m.mode==="choice"&&(m.choices||[]).length>3?" many":""}">
           ${(m.mode==="confirm"&&!m.x)||m.mode==="prompt"||m.mode==="choice"||m.mode==="pin"?`<button class="btn" onclick="modalAnswer(${m.mode==="confirm"?"false":"null"})">${esc(m.cancel)}</button>`:""}
           ${m.mode==="pin" ? "" : m.mode==="choice" ? (m.choices||[]).map(([lb,v],i)=>`<button class="btn ${m.tone==="warn"&&i===0?"danger-fill":"primary"}" onclick="modalAnswer(${esc(JSON.stringify(v))})">${esc(lb)}</button>`).join("") :
           `<button class="btn ${m.tone==="warn"?"danger-fill":"primary"}" onclick="${m.mode==="prompt"?"modalPromptAnswer()":"modalAnswer(true)"}">
