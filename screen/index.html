@@ -947,7 +947,8 @@ button.blk .tier.tblk{background:var(--rust); color:#fff; border-color:var(--rus
 /* 확인창은 .shell 밖(app 바로 아래)에 그려지므로 배율(zoom)을 따로 걸어 줍니다.
    시트·마법사·달력은 .shell 안에 있어 여기서 또 걸면 배율이 두 번 곱해집니다.
    ※ .overlay 와 같은 요소에 같이 붙으므로(class="overlay modal-ov") 반드시 .overlay 뒤에 있어야 합니다 */
-.modal-ov{align-items:center; z-index:70; zoom:var(--ui-zoom, 1)}
+/* 스크롤 + .modal 위아래 margin:auto: 창보다 긴 확인창도 위가 잘리지 않고 내려서 볼 수 있음. 짧으면 전처럼 가운데(11-04) */
+.modal-ov{align-items:center; overflow-y:auto; z-index:70; zoom:var(--ui-zoom, 1)}
 /* 토스트 — 화면 아래 한 줄, 3초. 예약을 저장한 뒤 '그 날짜로 점프' 하던 것을 없애고 대신 '보기' 로 갈 수 있게.
    #app 밖(body 바로 아래)에 두어 render() 가 지우지 않습니다. 자리를 항상 같은 곳에 두고 겹치면 글자만 바꿉니다.
    translateX 는 가운데 맞춤용(배율은 zoom — transform:scale 금지와 무관) */
@@ -1349,7 +1350,7 @@ button.bday.sel .b{background:rgba(255,255,255,.22); color:#fff}
 .res .rm{margin-left:auto}
 .warn-txt{color:var(--rust); font-weight:700}
 /* ---------- 확인창 (renderModal) — 경고는 제목이 벽돌색, 안내는 초록 ---------- */
-.modal{width:100%; max-width:420px; background:var(--bg); overflow:hidden; margin:0 var(--s16); box-shadow:0 24px 64px rgba(0,0,0,.24); border-radius:var(--r-lg)}
+.modal{width:100%; max-width:420px; background:var(--bg); overflow:hidden; margin:auto var(--s16); box-shadow:0 24px 64px rgba(0,0,0,.24); border-radius:var(--r-lg)}
 .modal.warn .md-h{color:var(--rust); font-size:var(--fs-head)}
 .modal.ok .md-h{color:var(--pine)}
 .md-h{padding:var(--s24) var(--s24) 0; font-size:var(--fs-head); font-weight:700; line-height:1.4}
