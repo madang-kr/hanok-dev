@@ -2889,9 +2889,17 @@ body.theme-hanok .pdot.on{color:var(--pine)}
 .tv-bgs{position:absolute; top:0; right:0; bottom:0; left:0; z-index:0; opacity:.92}
 .tv-bg{
   position:absolute; top:0; right:0; bottom:0; left:0; background-size:cover; background-position:center;
-  opacity:0; transition:opacity 2.4s ease-in-out;
+  opacity:0; transition:opacity 3s ease-in-out;
 }
 .tv-bg.on{opacity:1}
+/* 11-23 재아: 천천히 확대(100% → 106%). 나타나는 3초 + 혼자 10초 + 사라지는 3초 = 16초 동안 한 방향으로 쭉.
+   ★ 'transform:scale 금지' 규칙의 유일한 예외 — 그 규칙은 화면 배율 맞추기용이고, 움직이는 사진은 transform 이 구형 TV 에서도
+   GPU 로 돌아 가장 가볍습니다(background-size 로 키우면 매 프레임 다시 그림). 글자·칸에는 쓰지 않습니다.
+   .on → .out 으로 바뀌어도 애니메이션 이름이 같아 확대가 끊기지 않음(18-router.js tvBgNext) */
+.tv-bg.on, .tv-bg.out{-webkit-animation:tvKen 16s linear both; animation:tvKen 16s linear both; will-change:transform, opacity}
+@-webkit-keyframes tvKen{from{-webkit-transform:scale(1); transform:scale(1)} to{-webkit-transform:scale(1.06); transform:scale(1.06)}}
+@keyframes tvKen{from{-webkit-transform:scale(1); transform:scale(1)} to{-webkit-transform:scale(1.06); transform:scale(1.06)}}
+@media (prefers-reduced-motion:reduce){ .tv-bg.on, .tv-bg.out{-webkit-animation:none; animation:none} }
 /* 사진은 18-router.js 의 TV_BGS(screen/bg/ 파일)가 칸마다 직접 붙임 — 10-06 전엔 --bg1~7(base64) */
 .tv-stage{position:absolute; top:0; right:0; bottom:0; left:0; overflow:hidden}
 .tv-inner{position:absolute; top:0; right:0; bottom:0; left:0; z-index:1; display:flex; flex-direction:column; padding:calc(var(--tvu)*3.4) calc(var(--tvu)*6.4) calc(var(--tvu)*2.6)}
@@ -19666,19 +19674,55 @@ function setRoute(toScreen){
 /* 손님 TV 바탕 사진(좌석표형 전체 바탕 · 목록형 광고 칸 · 예약 없을 때) — 30초마다 다음 장(10-06 재아: 12초는 너무 자주).
    10-06 재아가 고화질로 바꿈: 전엔 저화질 7장(bg1~7)을 이 HTML 안에 base64 로 넣었는데, 이제 광고 영상처럼 screen/bg/ 의 파일을 받음
    (고화질을 넣어도 가게 태블릿이 받는 HTML 이 커지지 않게). 사진을 바꾸려면 같은 이름으로 덮어쓰거나 이 목록을 고침 */
-var TV_BGS = ["tv-1.webp", "tv-2.webp", "tv-3.webp", "tv-4.webp", "tv-5.webp", "tv-6.webp"];
+/* 11-23 재아: 사진 슬라이드쇼로 — 18장, 한 장 10초 + 겹쳐 바뀌는 3초(ease-in-out), 보이는 동안 100% → 106% 천천히 확대.
+   외관·음식·공간·룸이 번갈아 나오게 섞은 순서. tv-1~6 은 음식(옛 6장 그대로), 나머지는 홈페이지 img/ 의 같은 이름 사진을 복사해 둔 것 */
+var TV_BGS = ["hero-2-day.webp", "tv-1.webp", "room-jojo.webp", "tv-2.webp", "head-space-doors.webp", "tv-4.webp",
+  "hall-1f.webp", "hero-3-dumpling.webp", "room-chosun-juyu-gongmyeong.webp", "tv-3.webp", "head-visit-sunset.webp", "tv-5.webp",
+  "room-dongtak.webp", "tv-6.webp", "hall-low.webp", "room-jangbi-gwanu.webp", "hero-1-night.webp", "room-yubi.webp"];
+var TV_BG_SHOW = 13000, TV_BG_FADE = 3000;   /* 다음 장까지 13초(혼자 10초 + 겹침 3초). 확대 길이(16초 = 들어오는 3초 + 10초 + 나가는 3초)는 10-tv.css 의 tvKen */
+var TV_BG_T0 = 0, TV_BG_OUT = 0;             /* 지금 장이 켜진 시각 · 막 나가는 장 번호 */
+function tvBgUrl(k){ return adUrl("bg/" + TV_BGS[k - 1]); }
+/* 사진은 지금·다음·나가는 장에만 붙입니다 — 18장을 한꺼번에 받으면 구형 TV 메모리가 모자람(장마다 풀면 6MB 안팎).
+   다시 그릴 때(오늘→내일 등) 확대가 처음으로 튀지 않게, 켜진 지 지난 시간만큼 애니메이션을 앞당겨(음수 delay) 이어 갑니다 */
 function tvBgsHtml(){
-  return TV_BGS.map(function(u, i){ return '<div class="tv-bg' + (i + 1 === (view.bgIndex || 1) ? " on" : "") + '" style="background-image:url(&quot;' + esc(adUrl("bg/" + u)) + '&quot;)"></div>'; }).join("");
+  var n = TV_BGS.length, cur = view.bgIndex || 1, nx = cur % n + 1, now = Date.now();
+  if(!TV_BG_T0 || now - TV_BG_T0 > TV_BG_SHOW + TV_BG_FADE) TV_BG_T0 = now;
+  var age = now - TV_BG_T0, outOn = TV_BG_OUT && age < TV_BG_FADE;
+  return TV_BGS.map(function(u, i){
+    var k = i + 1, cls = "tv-bg", st = "";
+    if(k === cur){ cls += " on"; st = "animation-delay:-" + (age / 1000).toFixed(2) + "s;"; }
+    else if(outOn && k === TV_BG_OUT){ cls += " out"; st = "animation-delay:-" + ((age + TV_BG_SHOW) / 1000).toFixed(2) + "s;"; }
+    if(k === cur || k === nx || cls.indexOf(" out") > 0) st = "background-image:url(&quot;" + esc(tvBgUrl(k)) + "&quot;);" + st;
+    return '<div class="' + cls + '" data-k="' + k + '" style="' + st + '"></div>';
+  }).join("");
+}
+/* 다음 장으로: 지금 장은 .out 으로 바꿔 확대를 이어 가며 3초 동안 사라지고, 다음 장이 .on 으로 겹쳐 나타남.
+   같은 애니메이션 이름이라 .on → .out 으로 바뀌어도 확대가 끊기지 않습니다. 그 다음 장 사진은 지금 미리 받아 둠 */
+function tvBgNext(){
+  var n = TV_BGS.length, prev = view.bgIndex || 1, cur = prev % n + 1, nx = cur % n + 1;
+  view.bgIndex = cur; TV_BG_OUT = prev; TV_BG_T0 = Date.now();
+  document.querySelectorAll(".tv-bg").forEach(function(el){
+    var k = +el.getAttribute("data-k");
+    if(k === cur){ el.style.animationDelay = "0s"; el.classList.remove("out"); el.classList.add("on"); }
+    else if(k === prev){ el.classList.remove("on"); el.classList.add("out"); }
+    else { el.classList.remove("on"); el.classList.remove("out"); }
+    if((k === cur || k === nx) && !el.style.backgroundImage) el.style.backgroundImage = 'url("' + tvBgUrl(k) + '")';
+  });
+  setTimeout(function(){   /* 다 사라진 장은 확대를 멈추고 사진을 떼어 메모리를 돌려줌 */
+    var c = view.bgIndex || 1, x = c % n + 1;
+    document.querySelectorAll(".tv-bg.out").forEach(function(el){
+      var k = +el.getAttribute("data-k");
+      if(k === c) return;
+      el.classList.remove("out"); el.style.animationDelay = "";
+      if(k !== x) el.style.backgroundImage = "";
+    });
+  }, TV_BG_FADE + 300);
 }
 /* 배경 순환·자동 갱신 타이머 */
 function startDisplayTimers(){
   view.bgIndex = view.bgIndex || 1;
   clearInterval(bgTimer); clearInterval(dispTimer);
-  bgTimer = setInterval(()=>{
-    if(!view.display) return;
-    view.bgIndex = (view.bgIndex % TV_BGS.length) + 1;
-    document.querySelectorAll(".tv-bg").forEach((el,i)=> el.classList.toggle("on", i+1===view.bgIndex));
-  }, 30000);
+  bgTimer = setInterval(function(){ if(view.display) tvBgNext(); }, TV_BG_SHOW);
   dispTimer = setInterval(displayTick, 60000);
   startDailyReload();
   dispFsArm();
@@ -19730,8 +19774,14 @@ function updateDisplayInPlace(){
     fitTvList();
     fitTvMenu();
   } else {
-    render();   /* 좌석표형은 영상이 없어 통째로 그려도 됩니다 */
-    document.querySelectorAll(".tv-bg").forEach((el,i)=> el.classList.toggle("on", i+1===(view.bgIndex||1)));
+    /* 좌석표형: 11-23 부터 바탕 사진은 두고 칸(.tv-inner)과 메뉴 줄만 갈아 끼움 — 통째로 그리면 1분마다 사진의 확대·겹침이 끊겼음 */
+    var oldIn = document.querySelector(".tv-inner"), tmp = document.createElement("div"), newIn;
+    tmp.innerHTML = renderTvGrid(); newIn = tmp.querySelector(".tv-inner");
+    if(oldIn && newIn && document.querySelector(".tv-bgs")){
+      oldIn.parentNode.replaceChild(newIn, oldIn);
+      if(menu) menu.innerHTML = tvMenuHtml(TV_DAY_SHOWN);
+      fitDisplay();
+    } else render();
   }
 }
 /* 하루 한 번(새벽 4시) 페이지를 새로 불러옵니다.
