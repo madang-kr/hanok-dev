@@ -2996,8 +2996,10 @@ body.theme-hanok .pdot.on{color:var(--pine)}
 /* 자리가 모자라 접은 줄 수 */
 .tvl-more{flex:none; color:#C3B49A; font-size:calc(var(--tvu)*1.8); font-weight:600;
   text-align:center; padding-top:calc(var(--tvu)*1)}
-/* 비어 있어도 자리는 둡니다 — 접은 뒤에 이 줄이 나타나면 마지막 줄이 잘렸습니다(점검 T4) */
+/* 비어 있어도 자리는 둡니다 — 접은 뒤에 이 줄이 나타나면 마지막 줄이 잘렸습니다(점검 T4).
+   11-23: visibility 만으로는 글자 줄 높이가 안 잡혀(빈 칸 8px ↔ '외 N건' 30px) 접은 뒤 맨 아래 줄이 22px 잘렸음 — 빈 칸에 보이지 않는 한 글자를 넣어 높이를 같게 */
 .tvl-more:empty{visibility:hidden}
+.tvl-more:empty::before{content:" a0"}
 
 .tvl-foot{flex:none; text-align:center; font-family:var(--serif-tv);
   font-size:calc(var(--tvu)*2); letter-spacing:.2em; text-indent:.2em; color:#B9A889;
@@ -19762,7 +19764,6 @@ function updateDisplayInPlace(){
   if(!view.display) return;
   if(!!tvEco() !== TV_ECO_SHOWN){ render(); return; }
   if(TV_ECO_SHOWN){ tvEcoPaint(); return; }
-  tvShiftApply();
   /* 광고만 ↔ 목록 이 바뀌는 순간에만 통째로 다시 그립니다 (영상이 처음부터 다시 시작되는 건 이때뿐) */
   var idle = tvIdle();
   if(idle !== TV_IDLE_SHOWN || tvShowDay() !== TV_DAY_SHOWN){ render(); return; }   /* 오늘 → 내일 화면으로 넘어갈 때도 제목·좌석표를 통째로 */
@@ -19903,6 +19904,8 @@ function fitTvMenu(){
     if(inn.offsetWidth <= el.clientWidth * 0.96) break;   /* 가운데 정렬은 왼쪽으로 넘친 만큼이 scrollWidth 에 안 잡혀 안쪽 폭으로 잽니다 */
   }
 }
+/* 11-23: 글꼴이 늦게 적용되면 줄 높이가 바뀌어, 처음 잰 '외 N건' 이 1분 뒤 다시 잴 때 달라졌음 — 글꼴이 다 준비되면 한 번 더 잼 */
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ if(view.display) fitDisplay(); }, function(){});
 function fitDisplay(){
   fitTvList();
   fitTvMenu();
@@ -20077,15 +20080,8 @@ function renderTvIdle(){
       </div>
     </div>`;
 }
-/* ---------- 픽셀 시프트(11-10 재아: 번인 방지) ----------
-   제목·시각처럼 늘 같은 자리에 있는 글자가 패널에 남지 않게, 2분마다 화면 전체를 몇 픽셀씩 옮깁니다(여덟 자리 순환, 최대 6px — 눈에는 안 띔).
-   .tv-stage 의 네 변을 같이 밀어 크기는 그대로 — 영상이 다시 시작하지 않습니다 */
-var TV_SHIFT = [[0,0],[6,0],[6,6],[0,6],[-6,6],[-6,0],[-6,-6],[0,-6]];
-function tvShiftCss(){
-  var p = TV_SHIFT[Math.floor(Date.now() / 120000) % TV_SHIFT.length];
-  return "left:" + p[0] + "px;right:" + (-p[0]) + "px;top:" + p[1] + "px;bottom:" + (-p[1]) + "px";
-}
-function tvShiftApply(){ var el = document.querySelector(".tv-stage"); if(el) el.style.cssText = tvShiftCss(); }
+/* 픽셀 시프트(11-10, 2분마다 화면 전체를 최대 6px 옮기던 번인 방지)는 11-23 에 뺐습니다 — 매장 TV 가 TCL QLED(LCD)라
+   영구 번인이 사실상 없고(재아). OLED TV 로 바꾸면 커밋 61e65c8c 의 18-router.js 에서 TV_SHIFT·tvShiftCss·tvShiftApply 를 되살리세요 */
 /* ---------- 절전(ECO) 화면(11-10 재아) ----------
    켜지는 시각(아래 tvOnMin — 오전 8:30, 11-11) ~ 영업 종료 1시간 뒤 말고는 검은 화면에 작은 시계만 — TV 를 끄지 않아도 되게. 브레이크타임은 영업시간 안이라 그대로 켜 둠.
    오른쪽 위 '화면 켜기' 를 누르면 이 기기만, 이번 절전이 끝날 때까지 켜짐(다음 날 밤에는 다시 절전).
@@ -20155,7 +20151,7 @@ function renderDisplay(){
   var inner = idle ? renderTvIdle() : (tvType() === "grid" ? renderTvGrid() : renderTvList());
   return `
   <div class="tv tv-mode-${idle ? "list" : tvType()} ${idle ? "tv-idle" : "tv-hasmenu"}">
-    <div class="tv-stage" style="${tvShiftCss()}">${inner}${idle ? "" : `<div class="tvm">${tvMenuHtml(TV_DAY_SHOWN)}</div>`}</div>
+    <div class="tv-stage">${inner}${idle ? "" : `<div class="tvm">${tvMenuHtml(TV_DAY_SHOWN)}</div>`}</div>
     <div class="tv-hot" aria-hidden="true" onmouseenter="pokeExit(6000)"></div>   <!-- 마우스가 버튼으로 옮겨가는 사이 사라지지 않게 6초 유지 -->
     <div class="tv-tap" aria-hidden="true" onclick="pokeExit(5000)" ontouchstart="pokeExit(5000)"></div>
     <button class="tv-swap" onclick="swapTvType()">${tvType()==="grid" ? "목록으로" : "좌석표로"}</button>
@@ -20199,6 +20195,24 @@ function renderTvList(){
     </div>`;
 }
 /* 오른쪽 날개 속. 1분마다 이것만 갈아 끼웁니다 (영상은 그대로) */
+/* 손님 TV 목록의 좌석 글자(11-23 재아: 룸을 여러 개 쓰면 '장비+관우+…' 로 길어졌음).
+   룸 — 설정 좌석 순서에서 가장 앞 룸 하나만, 여러 개면 '조조 룸 등'. 룸 자리는 확정(roomId)만 — 잠정 룸은 바뀔 수 있어 안 띄움.
+   테이블 — 여포(파셜룸이라 손님이 찾아가야 함)만 '여포 테이블'. 다른 테이블은 번호 대신 층만 '1층 홀'·'저층 홀' —
+   거동불편 손님이 계단을 내려가야 하는지 입구에서 알도록, 번호는 그날 바뀌는 잠정 배정이 많아 직원이 안내. 층 상관없음이면 안 씀 */
+function tvSeatLabel(r){
+  if(!r.roomId){
+    var pf = prefFloor(r.seatPref);
+    return pf ? floorLabel(pf) : "";
+  }
+  var order = roomsAt(r.date).map(function(x){ return x.id; }), xs = [r.roomId].concat(r.extraIds || []).map(seatById).filter(Boolean);
+  var rooms = xs.filter(function(x){ return x.type === "room"; });
+  if(rooms.length){
+    rooms.sort(function(a, b){ var i = order.indexOf(a.id), j = order.indexOf(b.id); return (i < 0 ? 999 : i) - (j < 0 ? 999 : j); });
+    return rooms[0].name + " 룸" + (rooms.length > 1 ? " 등" : "");
+  }
+  if(xs.some(function(x){ return x.name === "여포"; })) return "여포 테이블";
+  return xs.length && xs[0].floor ? floorLabel(xs[0].floor) : "";
+}
 function tvSideHtml(){
   const s = store() || DATA.hanok;
   const day = tvShowDay(), isToday = day === todayStr(), now = isToday ? toMin(nowHM()) : -1;
@@ -20220,7 +20234,7 @@ function tvSideHtml(){
     });
     return groups.map(function(g){
       const items = g.items.map(function(r){
-        const seat = r.roomId ? resSeatLabel(r) : "";
+        const seat = tvSeatLabel(r);
         return `<div class="tvl-g">
         <span class="tvl-n">${tvName(r.name)} 님${r.tier ? tierTagOf(r.tier) : ""}</span>
         <span class="tvl-s">${seat ? `<span class="tvl-seat">${esc(seat)}</span>` : ""}<span class="tvl-cnt">${pplOf(r)}<small>명</small></span></span>
